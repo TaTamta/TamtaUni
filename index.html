@@ -126,6 +126,13 @@ button.btn:hover{border-color:var(--accent)} button.btn:disabled{opacity:.45;cur
 .day.today .dname{color:var(--accent)}
 .day .duel{font-size:13px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding-top:4px}
 @media (max-width:520px){ .day{grid-template-columns:1fr} }
+.login{max-width:380px;margin:32px auto 0;width:100%}
+.login form{display:flex;flex-direction:column;gap:8px}
+.login label{font-size:13px;font-weight:500;color:var(--muted)}
+.login input{font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);margin-bottom:6px}
+.login .err{color:var(--crit);font-size:13.5px}
+button.btn.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent);padding:9px 12px;font-weight:600}
+.right{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 footer{color:var(--muted);font-size:12.5px;padding-block:0 32px}
 @media (max-width:520px){ h1{font-size:23px} .task{grid-template-columns:auto 1fr} .task .meta{grid-column:2} }
 @media (prefers-reduced-motion:no-preference){ .meter>span{transition:width .25s ease} }
@@ -137,7 +144,7 @@ footer{color:var(--muted);font-size:12.5px;padding-block:0 32px}
   <div class="wrap">
     <div class="bar">
       <a class="brand" href="#home">Tamta University<small>EST. NOV 2026 · TBILISI</small></a>
-      <div class="sync" id="sync" data-s="local"><i></i><span id="syncText">Progress saved on this device</span></div>
+      <div class="right"><div class="sync" id="sync" data-s="local" hidden><i></i><span id="syncText">Progress saved on this device</span></div><button class="btn" id="signout" type="button" hidden>Sign out</button></div>
     </div>
     <nav class="tabs" id="nav" aria-label="Portal sections"></nav>
   </div>
@@ -233,7 +240,7 @@ var KEY="tamta-university-progress";
 var state={done:{},scores:{},late:0,updatedAt:0};
 try{var raw=localStorage.getItem(KEY);if(raw){var p=JSON.parse(raw);if(p&&p.done)state={done:p.done||{},scores:p.scores||{},late:p.late||0,updatedAt:p.updatedAt||0};}}catch(e){}
 var ref=null,saving=false,dirty=false,timer=null,fails=0,remoteReady=false,pushed=false;
-var SYNC={local:"Progress saved on this device",cloud:"Progress saved to your account",saving:"Saving…",slow:"Can't reach your saved progress yet. Showing this device's copy."};
+var SYNC={local:"Offline. Progress saved on this device",cloud:"Progress saved to your account",saving:"Saving…",slow:"Can't reach your saved progress yet. Showing this device's copy."};
 function setSync(s){var el=document.getElementById("sync");el.dataset.s=s;document.getElementById("syncText").textContent=SYNC[s]}
 function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}}
 function persist(){state.updatedAt=Date.now();saveLocal();if(ref){dirty=true;setSync("saving");clearTimeout(timer);timer=setTimeout(flush,700)}}
@@ -241,26 +248,33 @@ function flush(){if(saving||!dirty||!ref)return;saving=true;dirty=false;
   ref.set(JSON.parse(JSON.stringify(state))).then(function(){fails=0;saving=false;if(dirty){timer=setTimeout(flush,700)}else setSync("cloud")},
    function(){saving=false;fails++;if(fails<3){dirty=true;timer=setTimeout(flush,2500)}else setSync("local")});}
 function hasData(){return state.late>0||Object.keys(state.done).length>0||Object.keys(state.scores).length>0}
+var SB_URL="https://ahjycywmzhbuvwkymolg.supabase.co",SB_KEY="sb_publishable_YYX8iXF7LB0kkzRRoTXVHQ_fJeHkpt0",CKEY="tamta-university-login";
+var creds=null,authed=false,lastPull=0;
+try{var cr=JSON.parse(localStorage.getItem(CKEY)||"null");if(cr&&cr.u&&cr.p){creds=cr;authed=true}}catch(e){}
+function rpc(fn,body){return fetch(SB_URL+"/rest/v1/rpc/"+fn,{method:"POST",headers:{"apikey":SB_KEY,"Content-Type":"application/json"},body:JSON.stringify(body)}).then(function(r){if(!r.ok)throw new Error("http "+r.status);return r.json()})}
+function makeRef(){ref={set:function(body){return rpc("save_progress",{u:creds.u,p:creds.p,d:body}).then(function(ok){if(ok!==true)throw new Error("rejected")})}}}
+function adopt(d){
+  if(d&&(d.updatedAt||0)>(state.updatedAt||0)){state={done:Object.assign({},d.done),scores:Object.assign({},d.scores),late:d.late||0,updatedAt:d.updatedAt};saveLocal();
+    var a=document.activeElement;if(!(a&&a.classList&&a.classList.contains("score")))render()}
+  else if(hasData()&&(!d||(d.updatedAt||0)<state.updatedAt)){dirty=true;flush();return}
+  if(!dirty&&!saving)setSync("cloud")}
+function pull(){if(!creds)return;lastPull=Date.now();
+  rpc("get_progress",{u:creds.u,p:creds.p}).then(function(d){
+    if(d===null){signOut("Your saved sign-in no longer works. Sign in again.");return}
+    makeRef();fails=0;adopt(d)},function(){makeRef();setSync("local")})}
+function signOut(msg){creds=null;authed=false;ref=null;try{localStorage.removeItem(CKEY)}catch(e){}render();if(msg){var e1=document.getElementById("lerr");if(e1){e1.textContent=msg;e1.hidden=false}}}
+function signIn(u,p){var err=document.getElementById("lerr"),btn=document.getElementById("lbtn");btn.disabled=true;err.hidden=true;
+  rpc("get_progress",{u:u,p:p}).then(function(d){
+    if(d===null){btn.disabled=false;err.textContent="Wrong username or password.";err.hidden=false;return}
+    creds={u:u,p:p};authed=true;try{localStorage.setItem(CKEY,JSON.stringify(creds))}catch(e){}
+    makeRef();render();adopt(d)},
+   function(){btn.disabled=false;err.textContent="Can't reach the database. Check your connection and try again.";err.hidden=false})}
+function vLogin(){return '<section class="panel login"><div class="head"><span class="eyebrow">Student portal</span><h1>Sign in</h1></div><form id="loginForm"><label for="lu">Username</label><input id="lu" name="username" autocomplete="username" autocapitalize="none" required><label for="lp">Password</label><input id="lp" name="password" type="password" autocomplete="current-password" required><p class="err" id="lerr" role="alert" hidden></p><button class="btn primary" id="lbtn" type="submit">Sign in</button></form></section>'}
 function connect(){
-  if(!window.claude||!window.claude.use)return;
-  Promise.all([window.claude.use("db"),window.claude.use("user")]).then(function(r){
-    var db=r[0],user=r[1];if(!db||!user)return null;
-    return user.id().then(function(id){if(!id)return;
-      ref=db.doc("data/users/"+id+"/progress");
-      var lt=setTimeout(function(){if(!remoteReady)setSync("slow")},10000);
-      ref.onSnapshot(function(snap){
-        if(snap.metadata.hasPendingWrites)return;
-        var live=!snap.metadata.fromCache;if(live){clearTimeout(lt);remoteReady=true}
-        var d=snap.exists?snap.data():null;
-        if(d&&(d.updatedAt||0)>(state.updatedAt||0)){
-          state={done:Object.assign({},d.done),scores:Object.assign({},d.scores),late:d.late||0,updatedAt:d.updatedAt};saveLocal();
-          var a=document.activeElement;if(!(a&&a.classList&&a.classList.contains("score")))render();
-        }else if(live&&!pushed&&hasData()&&(!d||(d.updatedAt||0)<state.updatedAt)){pushed=true;dirty=true;flush();return}
-        if(live&&!dirty&&!saving)setSync("cloud");
-      },function(){clearTimeout(lt);ref=null;setSync("local")});
-    });
-  }).catch(function(){});
-}
+  document.getElementById("signout").addEventListener("click",function(){signOut()});
+  document.getElementById("main").addEventListener("submit",function(e){if(e.target.id!=="loginForm")return;e.preventDefault();signIn(document.getElementById("lu").value.trim(),document.getElementById("lp").value)});
+  window.addEventListener("focus",function(){if(authed&&!dirty&&!saving&&Date.now()-lastPull>30000)pull()});
+  if(authed)pull()}
 
 /* ---- helpers ---- */
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
@@ -391,6 +405,8 @@ function vRules(){var used=state.late||0,dots='';for(var i=0;i<4;i++)dots+='<i c
 var VIEWS={home:vHome,calendar:vCalendar,schedule:vSchedule,math:function(){return vCourse("math")},comp:function(){return vCourse("comp")},brain:function(){return vCourse("brain")},homework:vHomework,exams:vExams,grades:vGrades,roadmap:vRoadmap,rules:vRules};
 function route(){var r=location.hash.replace("#","");return VIEWS[r]?r:"home"}
 function render(){var r=route(),a=document.activeElement,fid=a&&a.id;
+  document.getElementById("sync").hidden=!authed;document.getElementById("signout").hidden=!authed;
+  if(!authed){document.getElementById("nav").innerHTML="";document.getElementById("main").innerHTML=vLogin();return}
   document.getElementById("nav").innerHTML=NAV.map(function(x){return '<a href="#'+x[0]+'"'+(x[0]===r?' aria-current="page"':'')+'>'+x[1]+'</a>'}).join("");
   document.getElementById("main").innerHTML=VIEWS[r]();
   if(fid){var f=document.getElementById(fid);if(f)f.focus({preventScroll:true})}}
