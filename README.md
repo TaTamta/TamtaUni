@@ -12,7 +12,7 @@ Semester 1 (16 Nov 2026 – 21 Mar 2027):
 
 ## How it works
 
-A static site with no build step: plain HTML, CSS and JavaScript modules, hosted on GitHub Pages. Progress (ticked items, scores, late passes) is saved to a Supabase database behind a simple username and password, and mirrored in the browser so the site still works offline.
+A static site with no build step: plain HTML, CSS and JavaScript modules, hosted on GitHub Pages. Progress (ticked items, scores, late passes, timed study sessions) is saved to a Supabase database behind a simple username and password, and mirrored in the browser so the site still works offline.
 
 ## Project structure
 
@@ -26,15 +26,18 @@ js/
   data/
     courses.js          Courses: lectures, homework, exams, weeks, OCW links
     rhythm.js           What is studied on each day of the week
+    sessionTypes.js     Activities a timed study session can have
     roadmap.js          Future semesters, gates and university rules
   lib/
     dates.js            Week and date calculations
     tasks.js            Builds the flat task list from the course data
     progress.js         Course progress, late items, study streak
     grades.js           Grade calculation
+    time.js             Study-time totals, heatmap and summaries from timed sessions
     api.js              Calls to the Supabase database functions
   ui/
     components.js       Shared pieces: task rows, chips, pills, meters
+    charts.js           Bar charts, column charts and the heatmap
   views/                One file per page (home, calendar, schedule, course, …)
 ```
 
@@ -46,6 +49,7 @@ js/
 | Semester start date, number of weeks, break week | `js/config.js` |
 | Which course is studied on which day | `js/data/rhythm.js` |
 | Future semesters or the rules | `js/data/roadmap.js` |
+| The activities offered by the timer | `js/data/sessionTypes.js` |
 | Grade weights | `weights` in `js/data/courses.js` |
 | How a page looks or what it shows | the matching file in `js/views/` |
 | Colours, fonts, spacing | the tokens at the top of `css/styles.css` |

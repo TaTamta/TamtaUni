@@ -7,6 +7,7 @@ import { store } from "../store.js";
 import { TASKS, tasksInWeek, tasksForCourse, countsTowardProgress, isHomework, isExam, dueDate } from "../lib/tasks.js";
 import { currentPhase, weekRange, daysUntil, countdown, formatLong } from "../lib/dates.js";
 import { courseProgress, overdueTasks, studyStreak } from "../lib/progress.js";
+import { sessionsThisWeek, totalMinutes, formatHours } from "../lib/time.js";
 import { esc, pill, meter, courseCode, taskList, pageHead } from "../ui/components.js";
 
 const notDone = (t) => !store.isDone(t.id);
@@ -65,6 +66,7 @@ function statsPanel(phase, weekTasks, overdue) {
   return `<section class="panel"><div class="stats">`
     + `<div><span class="eyebrow">${phase.phase === "pre" ? "Week 1" : "This week"}</span><div class="stat">${done}<small>of ${weekTasks.length} done</small></div>${meter(percent)}</div>`
     + `<div><span class="eyebrow">Study streak</span><div class="stat">${streak.length}<small>${streak.length === 1 ? "day" : "days"}</small></div><p class="empty">${streakNote}</p></div>`
+    + `<div><span class="eyebrow">Studied this week</span><div class="stat">${formatHours(totalMinutes(sessionsThisWeek(store.sessions))).replace(" h", "")}<small>of 16 h planned</small></div><p class="empty"><a href="#insights">See insights</a></p></div>`
     + `<div><span class="eyebrow">Late</span><div class="stat">${overdue.length}<small>${overdue.length === 1 ? "item" : "items"}</small></div><p class="empty">${store.latePassesLeft} of ${SEMESTER.latePasses} late passes left.</p></div>`
     + `<div><span class="eyebrow">Next exam</span>${nextExam
       ? `<div class="stat">${daysUntil(dueDate(nextExam))}<small>days</small></div><p class="empty">${courseCode(nextExam.courseId)} ${esc(nextExam.label)}, ${formatLong(dueDate(nextExam))}</p>`
@@ -76,6 +78,7 @@ function tonightPanel(phase, todayTasks, rhythm, overdue) {
   const inTerm = phase.phase === "term";
   let html = `<section class="panel"><div class="ph"><h2>${inTerm ? "Tonight" : "Today"}</h2>${inTerm ? pill(`${rhythm.hours} hours`) : ""}</div>`;
   if (inTerm) {
+    html += `<div class="actions"><a class="btn primary" href="#timer">${store.timer ? "Timer is running" : "Start the timer"}</a></div>`;
     html += `<p class="lede">${rhythm.courseId ? `${courseCode(rhythm.courseId)} · ` : ""}${esc(rhythm.text)}</p>`
       + taskList(todayTasks, { course: true }, "Nothing new is scheduled tonight. Use the time for the current problem set.");
   } else if (phase.phase === "pre") {

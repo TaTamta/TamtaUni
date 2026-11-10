@@ -6,13 +6,16 @@
 
 import { STORAGE_KEYS, SEMESTER } from "./config.js";
 import { fetchProgress, saveProgress } from "./lib/api.js";
+import { MIN_SESSION_MS } from "./data/sessionTypes.js";
 
 const SAVE_DELAY_MS = 700;
 const RETRY_DELAY_MS = 2500;
 const MAX_RETRIES = 3;
 const REFRESH_AFTER_MS = 30000;
 
-const emptyProgress = () => ({ done: {}, scores: {}, late: 0, updatedAt: 0 });
+// sessions: finished study sessions; timer: the running session, if any; tags: the user's own tags.
+const emptyProgress = () => ({ done: {}, scores: {}, late: 0, sessions: [], timer: null, tags: [], updatedAt: 0 });
+const newId = () => `s${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
 function readJson(key) {
   try { return JSON.parse(localStorage.getItem(key) || "null"); } catch { return null; }
@@ -35,7 +38,7 @@ const listeners = new Set();
 
 const notify = (reason) => listeners.forEach((fn) => fn(reason));
 function setSync(status) { syncStatus = status; notify("sync"); }
-const hasData = () => progress.late > 0 || Object.keys(progress.done).length > 0 || Object.keys(progress.scores).length > 0;
+const hasData = () => progress.late > 0 || Object.keys(progress.done).length > 0 || Object.keys(progress.scores).length > 0 || progress.sessions.length > 0 || Boolean(progress.timer);
 
 function changed() {
   progress.updatedAt = Date.now();
@@ -96,6 +99,10 @@ async function refresh() {
   }
 }
 
+function rememberTag(tag) {
+  if (tag && !progress.tags.includes(tag)) progress.tags.push(tag);
+}
+
 export const store = {
   /** Subscribe to changes. The callback gets a reason: "progress", "remote", "sync", "auth" or "login-expired". */
   subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); },
@@ -122,6 +129,41 @@ export const store = {
   },
   changeLatePasses(delta) {
     progress.late = Math.max(0, Math.min(SEMESTER.latePasses, (progress.late || 0) + delta));
+    changed();
+  },
+
+  // ---- study timer ----
+  get sessions() { return progress.sessions; },
+  get timer() { return progress.timer; },
+  get tags() { return progress.tags; },
+
+  /** Starts timing a session: { courseId, type, tag, taskId }. */
+  startTimer(fields) {
+    progress.timer = { ...fields, start: Date.now() };
+    rememberTag(fields.tag);
+    changed();
+  },
+  /** Stops the timer. Returns true if a session was saved (very short ones are dropped). */
+  stopTimer() {
+    const timer = progress.timer;
+    if (!timer) return false;
+    const end = Date.now();
+    const keep = end - timer.start >= MIN_SESSION_MS;
+    if (keep) progress.sessions.push({ id: newId(), courseId: timer.courseId, type: timer.type, tag: timer.tag || "", taskId: timer.taskId || "", start: timer.start, end });
+    progress.timer = null;
+    changed();
+    return keep;
+  },
+  discardTimer() { progress.timer = null; changed(); },
+  /** Adds a finished session by hand: { courseId, type, tag, start, end } with times in ms. */
+  addSession(session) {
+    progress.sessions.push({ id: newId(), tag: "", taskId: "", ...session });
+    progress.sessions.sort((a, b) => a.start - b.start);
+    rememberTag(session.tag);
+    changed();
+  },
+  deleteSession(id) {
+    progress.sessions = progress.sessions.filter((s) => s.id !== id);
     changed();
   },
 

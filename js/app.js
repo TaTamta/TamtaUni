@@ -6,6 +6,10 @@
 import { store } from "./store.js";
 import { homeView } from "./views/home.js";
 import { calendarView } from "./views/calendar.js";
+import { timerView, sessionLabel } from "./views/timer.js";
+import { insightsView } from "./views/insights.js";
+import { COURSES } from "./data/courses.js";
+import { formatClock } from "./lib/time.js";
 import { scheduleView, currentWeekAnchor } from "./views/schedule.js";
 import { courseView } from "./views/course.js";
 import { homeworkView } from "./views/homework.js";
@@ -19,6 +23,8 @@ import { loginView, LOGIN_ERRORS } from "./views/login.js";
 const ROUTES = {
   home: ["Dashboard", homeView],
   calendar: ["Calendar", calendarView],
+  timer: ["Timer", timerView],
+  insights: ["Insights", insightsView],
   schedule: ["Schedule", scheduleView],
   math: ["6.042J", () => courseView("math")],
   comp: ["6.0002", () => courseView("comp")],
@@ -49,8 +55,20 @@ function renderSyncStatus() {
   $("syncText").textContent = SYNC_TEXT[store.syncStatus];
 }
 
+// Updates the running clock in the header and on the Timer page, once a second.
+function renderClock() {
+  const timer = store.signedIn ? store.timer : null;
+  $("running").hidden = !timer;
+  if (!timer) return;
+  const clock = formatClock(Date.now() - timer.start);
+  $("runningText").textContent = `${COURSES[timer.courseId].code} ${clock}`;
+  $("running").title = sessionLabel(timer);
+  document.querySelectorAll("[data-clock]").forEach((el) => { el.textContent = clock; });
+}
+
 function render() {
   const signedIn = store.signedIn;
+  renderClock();
   $("sync").hidden = !signedIn;
   $("signout").hidden = !signedIn;
   renderSyncStatus();
@@ -101,11 +119,36 @@ function onChange(event) {
 }
 
 function onClick(event) {
-  const button = event.target.closest("[data-pass]");
-  if (button) store.changeLatePasses(Number(button.dataset.pass));
+  const pass = event.target.closest("[data-pass]");
+  if (pass) { store.changeLatePasses(Number(pass.dataset.pass)); return; }
+
+  const action = event.target.closest("[data-action]");
+  if (!action) return;
+  if (action.dataset.action === "timer-stop") store.stopTimer();
+  else if (action.dataset.action === "timer-discard") { if (confirm("Discard this session without saving it?")) store.discardTimer(); }
+  else if (action.dataset.action === "session-delete") { if (confirm("Delete this session?")) store.deleteSession(action.dataset.id); }
+}
+
+const formValues = (form) => Object.fromEntries(new FormData(form).entries());
+
+function startTimerFromForm(form) {
+  const v = formValues(form);
+  // A chosen task decides the course, so the two can't disagree.
+  const courseId = v.taskId ? v.taskId.split("-")[0] : v.courseId;
+  store.startTimer({ courseId, type: v.type, tag: v.tag.trim(), taskId: v.taskId });
+}
+
+function addSessionFromForm(form) {
+  const v = formValues(form);
+  const start = new Date(`${v.date}T${v.time}`).getTime();
+  const minutes = Number(v.minutes);
+  if (Number.isNaN(start) || !(minutes > 0)) return;
+  store.addSession({ courseId: v.courseId, type: v.type, tag: v.tag.trim(), start, end: start + minutes * 60000 });
 }
 
 async function onSubmit(event) {
+  if (event.target.id === "timerForm") { event.preventDefault(); startTimerFromForm(event.target); return; }
+  if (event.target.id === "sessionForm") { event.preventDefault(); addSessionFromForm(event.target); return; }
   if (event.target.id !== "loginForm") return;
   event.preventDefault();
   $("lbtn").disabled = true;
@@ -121,8 +164,11 @@ function onStoreChange(reason) {
   if (reason === "sync") { renderSyncStatus(); return; }
   if (reason === "login-expired") { showLoginError("expired"); return; }
   // Don't rebuild the page under someone typing a score.
-  const typingScore = document.activeElement && document.activeElement.classList && document.activeElement.classList.contains("score");
-  if (!typingScore) render();
+  const active = document.activeElement;
+  const typingScore = active && active.classList && active.classList.contains("score");
+  // A sync from another device must not wipe a half-filled timer form either.
+  const fillingForm = reason === "remote" && active && active.closest && active.closest("form");
+  if (!typingScore && !fillingForm) render();
 }
 
 main.addEventListener("change", onChange);
@@ -137,4 +183,5 @@ if (store.signedIn && currentRoute() === "schedule") {
   const anchor = currentWeekAnchor();
   if (anchor && $(anchor)) $(anchor).scrollIntoView();
 }
+setInterval(renderClock, 1000);
 store.start();
