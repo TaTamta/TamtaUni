@@ -62,7 +62,7 @@ function statsPanel(phase, weekTasks, overdue) {
   const percent = weekTasks.length ? Math.round((done / weekTasks.length) * 100) : 0;
   const streak = studyStreak();
   const nextExam = TASKS.filter((t) => isExam(t) && notDone(t) && daysUntil(dueDate(t)) >= 0).sort(byDueDate)[0];
-  const streakNote = streak.countedToday ? "Counted for today." : inTerm ? "Tick one item today to keep it." : "Starts with your first tick.";
+  const streakNote = streak.countedToday ? "Counted for today." : inTerm ? "Study or tick an item today to keep it." : "Starts with your first session or tick.";
   return `<section class="panel"><div class="stats">`
     + `<div><span class="eyebrow">${phase.phase === "pre" ? "Week 1" : "This week"}</span><div class="stat">${done}<small>of ${weekTasks.length} done</small></div>${meter(percent)}</div>`
     + `<div><span class="eyebrow">Study streak</span><div class="stat">${streak.length}<small>${streak.length === 1 ? "day" : "days"}</small></div><p class="empty">${streakNote}</p></div>`

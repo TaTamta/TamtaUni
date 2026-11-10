@@ -24,7 +24,7 @@ function statsPanel(sessions, summary, week) {
     + stat("This week", formatHours(totalMinutes(week)).replace(" h", ""), `of ${PLANNED_WEEK_MINUTES / 60} h planned`, `${week.length} ${week.length === 1 ? "session" : "sessions"} since Monday.`)
     + stat("All time", formatHours(summary.total).replace(" h", ""), "hours", `${summary.count} sessions on ${summary.activeDays} ${summary.activeDays === 1 ? "day" : "days"}.`)
     + stat("Average session", Math.round(summary.average), "min", `Longest: ${formatDuration(minutesOf(summary.longest))} on ${formatShort(new Date(summary.longest.start))}.`)
-    + stat("Study streak", streak.length, streak.length === 1 ? "day" : "days", "Days in a row with an item ticked off.")
+    + stat("Study streak", streak.length, streak.length === 1 ? "day" : "days", "Days in a row with a timed session or a ticked item.")
     + `</div></section>`;
 }
 

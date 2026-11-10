@@ -13,9 +13,10 @@ export function courseProgress(courseId) {
 /** Unfinished tasks from weeks before the current one. */
 export const overdueTasks = (phase) => TASKS.filter((t) => countsTowardProgress(t) && !store.isDone(t.id) && t.week < phase.week);
 
-/** Consecutive days, ending today or yesterday, with at least one task ticked. */
+/** Consecutive days, ending today or yesterday, with a timed study session or a ticked task. */
 export function studyStreak() {
-  const days = new Set(store.completionTimes().map((time) => { const d = new Date(time); d.setHours(0, 0, 0, 0); return d.getTime(); }));
+  const times = [...store.completionTimes(), ...store.sessions.map((s) => s.start)];
+  const days = new Set(times.map((time) => { const d = new Date(time); d.setHours(0, 0, 0, 0); return d.getTime(); }));
   const countedToday = days.has(today().getTime());
   let day = countedToday ? today() : addDays(today(), -1);
   let length = 0;
